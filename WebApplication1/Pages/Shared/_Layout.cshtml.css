@@ -1,0 +1,38 @@
+﻿html {
+    position: relative;
+    min-height: 100%;
+}
+
+body {
+    margin-bottom: 60px; /* Высота футера */
+    background-color: #f8f9fa;
+}
+
+.footer {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    white-space: nowrap;
+    line-height: 60px;
+}
+
+/* Стили для кнопки корзины */
+#cart-badge {
+    font-size: 0.7rem;
+    padding: 0.35em 0.6em;
+    border: 2px solid white;
+}
+
+.navbar-brand i {
+    font-size: 1.4rem;
+    vertical-align: middle;
+}
+
+.card {
+    border-radius: 12px;
+    transition: transform 0.2s;
+}
+
+.btn {
+    border-radius: 8px;
+}

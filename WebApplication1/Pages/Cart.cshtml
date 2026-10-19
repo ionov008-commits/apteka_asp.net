@@ -1,0 +1,139 @@
+﻿@page
+@model WebApplication1.Pages.CartModel
+@{
+    ViewData["Title"] = "Корзина бронирования";
+}
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>🛒 Ваша корзина</h1>
+        <a href="/Catalog" class="btn btn-outline-primary">← Вернуться в каталог</a>
+    </div>
+
+    @if (Model.Cart == null || !Model.Cart.OrderItems.Any())
+    {
+        <div class="card shadow-sm">
+            <div class="card-body text-center py-5">
+                <h4 class="text-muted">В корзине пока ничего нет</h4>
+                <p>Выберите нужные препараты в каталоге и добавьте их в корзину, выбрав удобную аптеку.</p>
+                <a href="/Catalog" class="btn btn-primary btn-lg">Перейти к покупкам</a>
+            </div>
+        </div>
+    }
+    else
+    {
+        @foreach (var pharmacyGroup in Model.Cart.OrderItems.GroupBy(i => i.Stock.Pharmacy))
+        {
+            <div class="card mb-4 shadow-sm border-primary">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">📍 Аптека: @pharmacyGroup.Key.Name</h5>
+                    <span>@pharmacyGroup.Key.Phone</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="p-3 bg-light border-bottom">
+                        <i class="bi bi-geo-alt-fill"></i> <strong>Адрес:</strong> @pharmacyGroup.Key.Address <br />
+                        <i class="bi bi-clock"></i> <strong>Режим работы:</strong> @pharmacyGroup.Key.WorkingHours
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 40%">Препарат</th>
+                                    <th class="text-center">Количество</th>
+                                    <th>Цена</th>
+                                    <th>Итого</th>
+                                    <th class="text-end">Действие</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in pharmacyGroup)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                @if (!string.IsNullOrEmpty(item.Stock.Product.Image))
+                                                {
+                                                    <img src="/images/products/@item.Stock.Product.Image" alt="@item.Stock.Product.Name" class="me-3" style="width: 50px; height: 50px; object-fit: cover;">
+                                                }
+                                                <div>
+                                                    <strong>@item.Stock.Product.Name</strong><br />
+                                                    <small class="text-muted">@item.Stock.Product.Form | @item.Stock.Product.Dosage</small>
+                                                    @if (item.Stock.Product.PrescriptionRequired == 1)
+                                                    {
+                                                        <br />
+                                        
+                                                        <span class="badge bg-danger">Нужен рецепт</span>
+                                                    }
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="btn-group border rounded">
+                                                <form method="post" asp-page-handler="UpdateQuantity">
+                                                    <input type="hidden" name="stockId" value="@item.StockId" />
+                                                    <input type="hidden" name="delta" value="-1" />
+                                                    <button type="submit" class="btn btn-link text-decoration-none text-dark fw-bold border-end" style="width: 40px;">−</button>
+                                                </form>
+
+                                                <span class="d-flex align-items-center justify-content-center px-3 fw-bold" style="min-width: 50px;">
+                                                    @item.Quantity
+                                                </span>
+
+                                                <form method="post" asp-page-handler="UpdateQuantity">
+                                                    <input type="hidden" name="stockId" value="@item.StockId" />
+                                                    <input type="hidden" name="delta" value="1" />
+                                                    @* Кнопка блокируется, если в корзине уже максимум доступного *@
+                                                    <button type="submit" class="btn btn-link text-decoration-none text-dark fw-bold border-start" style="width: 40px;"
+                                                            @(item.Quantity >= item.Stock.AvailableQuantity ? "disabled" : "")>
+                                                        +
+                                                    </button>
+                                                </form>
+                                            </div>
+                                            @* Выводим AvailableQuantity вместо сырого остатка *@
+                                            <div class="small text-muted mt-1">Доступно: @item.Stock.AvailableQuantity шт.</div>
+                                        </td>
+                                        <td>@((item.Stock.Price ?? 0).ToString("F2")) руб.</td>
+                                        <td class="fw-bold">@((item.Quantity * (item.Stock.Price ?? 0)).ToString("F2")) руб.</td>
+                                        <td class="text-end">
+                                            <form method="post" asp-page-handler="UpdateQuantity">
+                                                <input type="hidden" name="stockId" value="@item.StockId" />
+                                                <input type="hidden" name="delta" value="-@item.Quantity" />
+                                                <button type="submit" class="btn btn-outline-danger btn-sm">
+                                                    <i class="bi bi-trash"></i> Удалить
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <div class="card border-success shadow-sm sticky-bottom mb-5" style="bottom: 20px; z-index: 1000;">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h4 class="mb-1">Общая стоимость: <span class="text-success fw-bold">@((Model.Cart.TotalCost ?? 0).ToString("F2")) руб.</span></h4>
+                        <p class="text-muted mb-0">
+                            <i class="bi bi-info-circle"></i> Бронь действительна в течение 7 дней. Оплата производится в аптеке при получении.
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <form method="post" asp-page-handler="ConfirmOrder">
+                            <button type="submit" class="btn btn-success btn-lg px-5 shadow">
+                                <i class="bi bi-check2-circle"></i> Подтвердить бронирование
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+}

@@ -1,0 +1,237 @@
+﻿@page
+@model WebApplication1.Pages.Pharmacy.PharmacistModel
+@{
+    ViewData["Title"] = "Рабочее место фармацевта";
+}
+
+<div class="container mt-4">
+    <h2>Рабочее место фармацевта</h2>
+    <hr />
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger">@Model.ErrorMessage</div>
+    }
+    @if (Request.Query["SuccessMessage"].Count > 0)
+    {
+        <div class="alert alert-success">@Request.Query["SuccessMessage"]</div>
+    }
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Поиск заказа</h5>
+
+                    <form method="get" id="searchForm">
+                        <div class="input-group mb-3">
+                            <input type="number" class="form-control" name="SearchOrderId" id="SearchOrderId" placeholder="Введите ID заказа..." value="@Model.SearchOrderId" required>
+                            <button class="btn btn-primary" type="submit">Найти</button>
+                        </div>
+                    </form>
+
+                    @* Зона для загрузки/вставки QR-кода *@
+                    <div class="border rounded p-4 text-center bg-light" id="qrDropZone" style="cursor: pointer; border-style: dashed !important; border-width: 2px !important;">
+                        <h4 class="mb-2">📷 Загрузить QR-код</h4>
+                        <p class="text-muted small mb-0">Нажмите сюда, чтобы выбрать файл</p>
+                        <p class="text-muted small mb-2">или просто нажмите <strong>Ctrl+V</strong> на клавиатуре</p>
+
+                        <input type="file" id="qrFileInput" accept="image/*" style="display: none;" />
+                        <div id="qr-error" class="text-danger small mt-2" style="display: none;">
+                            Не удалось распознать QR-код или найти в нём ID заказа.
+                        </div>
+                    </div>
+
+                    @* Скрытый элемент, необходимый для библиотеки html5-qrcode *@
+                    <div id="reader" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (Model.CurrentOrder != null)
+    {
+        <div class="card shadow-sm border-primary">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Заказ #@Model.CurrentOrder.OrderId</h5>
+                <span class="badge bg-light text-dark">Статус: @Model.CurrentOrder.Status</span>
+            </div>
+            <div class="card-body">
+                <p><strong>Клиент:</strong> @Model.CurrentOrder.Customer?.FullName</p>
+                <p><strong>Сумма заказа:</strong> @Model.CurrentOrder.TotalCost ₽</p>
+
+                <h6 class="mt-4">Состав заказа (по умолчанию всё выдается):</h6>
+
+                <form method="post" asp-page-handler="IssueOrder">
+                    <input type="hidden" name="orderId" value="@Model.CurrentOrder.OrderId" />
+
+                    <table class="table table-hover align-middle" id="orderItemsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="text-danger" style="width: 100px;">Отказ ❌</th>
+                                <th>Название</th>
+                                <th>Форма</th>
+                                <th>Кол-во</th>
+                                <th>Статус</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Model.OrderItems)
+                            {
+                                <tr>
+                                    <td>
+                                        @if (item.Status == "Pending")
+                                        {
+                                            <input class="form-check-input item-check border-danger" type="checkbox" name="cancelledItemIds" value="@item.OrderItemId" style="transform: scale(1.5);">
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td class="item-name">@item.Stock.Product.Name (@item.Stock.Product.ActiveSubstance)</td>
+                                    <td class="item-name">@item.Stock.Product.Form, @item.Stock.Product.Dosage</td>
+                                    <td class="item-name"><strong>@item.Quantity шт.</strong></td>
+                                    <td>
+                                        @if (item.Status == "Pending")
+                                        {
+                                            <span class="badge bg-warning text-dark">В ожидании</span>
+                                        }
+                                        else if (item.Status == "Dispensed")
+                                        {
+
+                                            <span class="badge bg-success">Выдано</span>
+                                        }
+                                        else if (item.Status == "Cancelled")
+                                        {
+
+                                            <span class="badge bg-danger">Отказ</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+
+                    @if (Model.OrderItems.Any(oi => oi.Status == "Pending"))
+                    {
+                        <button type="submit" class="btn btn-success btn-lg w-100 mt-3" id="issueBtn">
+                            ✅ Подтвердить выдачу
+                        </button>
+                        <small class="text-muted mt-2 d-block text-center">Выдаются все позиции, кроме тех, где стоит галочка "Отказ".</small>
+                    }
+                    else
+                    {
+                        <div class="alert alert-secondary text-center mt-3 mb-0">
+                            Товары вашей аптеки по этому заказу уже обработаны.
+                        </div>
+                    }
+                </form>
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+
+            // 1. ЛОГИКА ЗАЧЕРКИВАНИЯ
+            const checkboxes = document.querySelectorAll('.item-check');
+
+            checkboxes.forEach(chk => {
+                chk.addEventListener('change', function () {
+                    const row = this.closest('tr');
+                    const textCells = row.querySelectorAll('.item-name');
+
+                    if (this.checked) {
+                        textCells.forEach(cell => {
+                            cell.style.textDecoration = 'line-through';
+                            cell.style.color = '#dc3545';
+                        });
+                    } else {
+                        textCells.forEach(cell => {
+                            cell.style.textDecoration = 'none';
+                            cell.style.color = '';
+                        });
+                    }
+                });
+            });
+
+            // 2. ЛОГИКА ЧТЕНИЯ QR ИЗ ФАЙЛА / БУФЕРА
+            const qrDropZone = document.getElementById('qrDropZone');
+            const qrFileInput = document.getElementById('qrFileInput');
+            const qrError = document.getElementById('qr-error');
+            const searchInput = document.getElementById('SearchOrderId');
+            const searchForm = document.getElementById('searchForm');
+
+            const html5QrCode = new Html5Qrcode("reader");
+
+            // УМНАЯ функция извлечения ID заказа
+            function extractOrderId(text) {
+                // Вариант А: В строке есть параметр ?SearchOrderId=45
+                let match = text.match(/SearchOrderId=(\d+)/i);
+                if (match) return match[1];
+
+                // Вариант Б: В строке просто есть ссылка, заканчивающаяся на число (например /orders/45)
+                match = text.match(/\/(\d+)$/);
+                if (match) return match[1];
+
+                // Вариант В: В строке просто лежат какие-то цифры (вытаскиваем первую группу цифр)
+                match = text.match(/\d+/);
+                if (match) return match[0];
+
+                return null; // Ничего похожего на ID не нашли
+            }
+
+            // Функция обработки картинки
+            function processImageFile(file) {
+                qrError.style.display = 'none';
+                qrDropZone.style.opacity = '0.5';
+
+                html5QrCode.scanFile(file, true)
+                    .then(decodedText => {
+                        console.log("Содержимое QR:", decodedText);
+
+                        // Достаем только ID заказа из прочитанного текста
+                        const orderId = extractOrderId(decodedText);
+
+                        if (orderId) {
+                            searchInput.value = orderId;
+                            searchForm.submit();
+                        } else {
+                            throw new Error("В коде нет цифр заказа");
+                        }
+                    })
+                    .catch(err => {
+                        console.error(`Ошибка: ${err}`);
+                        qrError.style.display = 'block';
+                        qrDropZone.style.opacity = '1';
+                        qrFileInput.value = "";
+                    });
+            }
+
+            qrDropZone.addEventListener('click', () => qrFileInput.click());
+
+            qrFileInput.addEventListener('change', (e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                    processImageFile(e.target.files[0]);
+                }
+            });
+
+            window.addEventListener('paste', e => {
+                const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+                for (let item of items) {
+                    if (item.type.indexOf('image') === 0) {
+                        const file = item.getAsFile();
+                        if (file) {
+                            processImageFile(file);
+                        }
+                        break;
+                    }
+                }
+            });
+        });
+    </script>
+}

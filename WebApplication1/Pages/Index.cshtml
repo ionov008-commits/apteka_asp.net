@@ -1,0 +1,106 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Главная";
+}
+
+<div style="font-family: 'Segoe UI', sans-serif; background: #fdfdfd; min-height: 100vh; padding-bottom: 50px;">
+
+    @* Блок поиска лекарств *@
+    <div style="background: linear-gradient(135deg, #0d6efd 0%, #20c997 100%); padding: 80px 20px; text-align: center; color: white;">
+        <h1 style="font-size: 42px; margin-bottom: 20px; font-weight: 800;">Найдите лекарство</h1>
+        <div style="position: relative; max-width: 700px; margin: 0 auto;">
+            <input type="text" id="pillSearch"
+                   style="width: 100%; padding: 18px 25px; border-radius: 50px; border: none; font-size: 18px; box-shadow: 0 10px 25px rgba(0,0,0,0.1);"
+                   placeholder="Начните вводить название или вещество..." autocomplete="off">
+
+            <div id="searchSuggestions"
+                 style="position: absolute; top: 110%; left: 0; right: 0; background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 15px 35px rgba(0,0,0,0.2); z-index: 1000; display: none; text-align: left;">
+            </div>
+        </div>
+    </div>
+
+    @* Блок категорий *@
+    <div style="max-width: 1200px; margin: 40px auto; padding: 0 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 30px;">
+            <h2 style="color: #444; margin: 0;">Категории товаров</h2>
+            <a href="/Catalog" style="color: #0d6efd; text-decoration: none; font-weight: bold;">Смотреть весь список →</a>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px;">
+            @if (Model.Categories != null)
+            {
+                @foreach (var categoryName in Model.Categories)
+                {
+                    <div style="background: white; padding: 25px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); transition: transform 0.2s;"
+                         onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                        <h3 style="margin-top: 0; font-size: 20px; color: #333;">@categoryName</h3>
+                        <p style="color: #777; font-size: 14px;">Лекарственные средства и препараты</p>
+                        <a href="/Catalog#@categoryName.Replace(" ", "_")"
+                           style="display: inline-block; margin-top: 15px; color: #0d6efd; text-decoration: none; font-weight: 600;">Перейти в раздел →</a>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+<script>
+    const searchInput = document.getElementById('pillSearch');
+    const suggestions = document.getElementById('searchSuggestions');
+    const allProducts = @Html.Raw(Model.SearchDataJson ?? "[]");
+
+    searchInput.addEventListener('input', (e) => {
+        const val = e.target.value.trim().toLowerCase();
+        suggestions.innerHTML = '';
+
+        if (val.length < 1) {
+            suggestions.style.display = 'none';
+            return;
+        }
+
+        const filtered = allProducts.filter(p =>
+            p.name.toLowerCase().includes(val) ||
+            (p.active && p.active.toLowerCase().includes(val))
+        ).slice(0, 8);
+
+        if (filtered.length > 0) {
+            filtered.forEach(p => {
+                const item = document.createElement('div');
+                item.style.padding = '15px 25px';
+                item.style.borderBottom = '1px solid #eee';
+                item.style.cursor = 'pointer';
+                item.style.color = '#333';
+
+                const subText = p.active && p.active.toLowerCase().includes(val) && !p.name.toLowerCase().includes(val)
+                    ? `<div style="font-size: 12px; color: #0d6efd;">Вещество: ${p.active}</div>`
+                    : '';
+
+                item.innerHTML = `
+                    <div style="font-weight: 600;">${p.name}</div>
+                    ${subText}
+                `;
+
+                item.onclick = () => window.location.href = `/ProductCard?id=${p.productId}`;
+                item.onmouseover = () => item.style.background = '#f8f9fa';
+                item.onmouseout = () => item.style.background = 'white';
+
+                suggestions.appendChild(item);
+            });
+            suggestions.style.display = 'block';
+        } else {
+            const noResult = document.createElement('div');
+            noResult.style.padding = '15px 25px';
+            noResult.style.color = '#999';
+            noResult.innerText = 'Ничего не найдено';
+            suggestions.appendChild(noResult);
+            suggestions.style.display = 'block';
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!searchInput.contains(e.target) && !suggestions.contains(e.target)) {
+            suggestions.style.display = 'none';
+        }
+    });
+</script>

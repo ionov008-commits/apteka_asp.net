@@ -1,0 +1,225 @@
+﻿@page
+@model WebApplication1.Pages.ProductCardModel
+@{
+    ViewData["Title"] = Model.Product?.Name ?? "Карточка препарата";
+}
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<div style="max-width: 1200px; margin: 20px auto; font-family: 'Segoe UI', sans-serif;">
+
+    <div style="display: flex; gap: 20px; margin-bottom: 30px; height: 450px;">
+        <div style="flex: 1; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); display: flex; flex-direction: column;">
+            <div style="width: 100%; height: 200px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; overflow: hidden;">
+                @{
+                    string imagePath = "/images/products/no-image.png";
+                    if (!string.IsNullOrEmpty(Model.Product.Image))
+                    {
+                        imagePath = "/images/products/" + Model.Product.Image;
+                    }
+                    else
+                    {
+                        imagePath = $"/images/products/{Model.Product.ProductId}.png";
+                    }
+                }
+                <img src="@imagePath"
+                     alt="@Model.Product.Name"
+                     onerror="this.src='/images/products/no-image.png';"
+                     style="max-width: 100%; max-height: 100%; object-fit: contain;">
+            </div>
+            <h2 style="margin: 0 0 10px 0; color: #333;">@Model.Product.Name</h2>
+            <p style="color: #666; font-size: 14px; flex-grow: 1;">
+                <strong>Дозировка:</strong> @Model.Product.Dosage <br>
+                <strong>Форма:</strong> @Model.Product.Form <br>
+                <strong>Действующее вещество:</strong> @Model.Product.ActiveSubstance <br>
+                <strong>Описание:</strong> @Model.Product.Description
+            </p>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="window.history.back()" style="flex: 1; padding: 12px; text-align: center; border: 1px solid #ddd; background: white; border-radius: 8px; cursor: pointer; color: #333;">Назад</button>
+            </div>
+        </div>
+
+        <div style="flex: 2; position: relative; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+            <div id="productMap" style="width: 100%; height: 100%;"></div>
+            <div style="position: absolute; bottom: 15px; left: 15px; z-index: 1000; background: white; padding: 10px 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); font-size: 14px;">
+                <strong style="color: #0d6efd;">Ваш адрес:</strong> <span id="displayUserAddress">@Model.UserAddress</span>
+                <div id="calcStatus" style="font-size: 12px; color: #666; margin-top: 5px;">📍 Загрузка карты...</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="offersTable" style="background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0;">Наличие в аптеках</h3>
+            <div style="display: flex; gap: 20px; font-size: 14px;">
+                <span>Сортировка аптек:</span>
+                <label><input type="radio" name="sort" value="price" checked onchange="sortOffers('price')"> По цене</label>
+                <label><input type="radio" name="sort" value="dist" onchange="sortOffers('dist')"> По расстоянию</label>
+            </div>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="border-bottom: 2px solid #eee; text-align: left; color: #888; font-size: 14px;">
+                    <th style="padding: 12px;">Аптека</th>
+                    <th style="padding: 12px;">Адрес</th>
+                    <th style="padding: 12px;">Расстояние</th>
+                    <th style="padding: 12px;">Цена</th>
+                    <th style="padding: 12px; width: 150px; text-align: center;">Корзина</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var offer in Model.Offers)
+                {
+                    <tr style="border-bottom: 1px solid #f5f5f5;" class="offer-row" data-id="@offer.PharmacyId" data-price="@offer.Price.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-dist="9999">
+                        <td style="padding: 15px; font-weight: 600;">@offer.Name</td>
+                        <td style="padding: 15px; color: #555;">@offer.Address</td>
+                        <td style="padding: 15px; color: #0d6efd;" class="dist-cell">Считаем...</td>
+                        <td style="padding: 15px; font-weight: 700; color: #333;">@offer.Price.ToString("F2") ₽</td>
+
+                        <td style="padding: 15px; text-align: right;" id="cart-container-@offer.PharmacyId">
+                            @if (offer.CartQuantity > 0)
+                            {
+                                <div style="display: flex; align-items: center; justify-content: space-between; border: 1px solid #0d6efd; border-radius: 8px; overflow: hidden; background: #fff; height: 38px; width: 100px; margin-left: auto;">
+                                    <button type="button" onclick="updateCart(@Model.Product.ProductId, @offer.PharmacyId, @(offer.CartQuantity - 1))"
+                                            style="width: 30px; height: 100%; border: none; background: #e9ecef; cursor: pointer; font-weight: bold; color: #333;">
+                                        −
+                                    </button>
+                                    <div style="flex: 1; text-align: center; font-weight: 600; color: #0d6efd;">@offer.CartQuantity</div>
+                                    <button type="button" onclick="updateCart(@Model.Product.ProductId, @offer.PharmacyId, @(offer.CartQuantity + 1))"
+                                            style="width: 30px; height: 100%; border: none; background: #e9ecef; cursor: pointer; font-weight: bold; color: #333;"
+                                            @(offer.CartQuantity >= offer.Quantity ? "disabled" : "")>
+                                        +
+                                    </button>
+                                </div>
+                            }
+                            else
+                            {
+                                <button type="button" onclick="updateCart(@Model.Product.ProductId, @offer.PharmacyId, 1)"
+                                        style="width: 38px; height: 38px; border-radius: 8px; display: flex; align-items: center; justify-content: center; border: none; background: #0d6efd; color: white; cursor: pointer; margin-left: auto;"
+                                        @(User.IsInRole("customer") ? "" : "disabled title='Только для покупателей'")>
+                                    <i class="bi bi-cart-plus" style="font-size: 1.2rem;"></i>
+                                </button>
+                            }
+                            <div style="font-size: 11px; color: #999; margin-top: 4px; text-align: center;">В наличии: @offer.Quantity шт.</div>
+                        </td>
+                    </tr>
+                }
+                @if (!Model.Offers.Any())
+                {
+                    <tr><td colspan="5" style="text-align:center; padding: 30px; color:#999;">В данный момент препарата нет в наличии.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    let map;
+    const userAddress = "@Html.Raw(Model.UserAddress)";
+    const userLat = @(Model.UserLat?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "null");
+    const userLon = @(Model.UserLon?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "null");
+    const offers = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Offers));
+
+    const userIcon = L.icon({ iconUrl: 'https://cdn-icons-png.flaticon.com/512/9356/9356230.png', iconSize: [40, 40], iconAnchor: [20, 40] });
+    const pharmacyIcon = L.icon({ iconUrl: 'https://cdn-icons-png.flaticon.com/512/3721/3721710.png', iconSize: [32, 32], iconAnchor: [16, 32] });
+
+    function getDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+    }
+
+    function initMap() {
+        const initialLat = userLat !== null ? userLat : 53.90;
+        const initialLon = userLon !== null ? userLon : 27.56;
+
+        map = L.map('productMap').setView([initialLat, initialLon], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        const statusLabel = document.getElementById('calcStatus');
+
+        if (userLat !== null && userLon !== null) {
+            L.marker([userLat, userLon], {icon: userIcon})
+             .addTo(map).bindPopup("<b>Ваш адрес</b><br>" + userAddress).openPopup();
+        } else {
+            statusLabel.innerText = "⚠️ Авторизуйтесь, чтобы рассчитать расстояние";
+            statusLabel.style.color = "#dc3545";
+        }
+
+        offers.forEach(opt => {
+            let row = document.querySelector(`.offer-row[data-id='${opt.PharmacyId}']`);
+            if(!row) return;
+            let distCell = row.querySelector('.dist-cell');
+
+            if (opt.Latitude !== 0 && opt.Longitude !== 0) {
+                L.marker([opt.Latitude, opt.Longitude], {icon: pharmacyIcon})
+                 .addTo(map)
+                 .bindPopup(`<b>${opt.Name}</b><br>${opt.Address}<br>Цена: <b>${opt.Price.toFixed(2)} ₽</b>`);
+
+                if (userLat !== null && userLon !== null) {
+                    let distance = getDistance(userLat, userLon, opt.Latitude, opt.Longitude);
+                    row.dataset.dist = distance;
+                    distCell.innerText = distance.toFixed(1) + " км";
+                } else {
+                    distCell.innerText = "—";
+                }
+            } else {
+                distCell.innerText = "Нет координат";
+            }
+        });
+
+        if (userLat !== null && userLon !== null) {
+            statusLabel.innerText = "✅ Все расстояния рассчитаны";
+            statusLabel.style.color = "#28a745";
+        }
+    }
+
+    function sortOffers(criteria) {
+        const tbody = document.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('.offer-row'));
+
+        rows.sort((a, b) => {
+            if (criteria === 'price') {
+                return parseFloat(a.dataset.price) - parseFloat(b.dataset.price);
+            } else {
+                return parseFloat(a.dataset.dist) - parseFloat(b.dataset.dist);
+            }
+        });
+
+        rows.forEach(row => tbody.appendChild(row));
+    }
+        async function updateCart(productId, pharmacyId, quantity) {
+        // Формируем данные для отправки (аналог FormData из формы)
+        const formData = new FormData();
+        formData.append('productId', productId);
+        formData.append('pharmacyId', pharmacyId);
+        formData.append('quantity', quantity);
+
+        try {
+            const response = await fetch('?handler=AddToCart', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    // Обязательно для защиты ASP.NET Core от CSRF
+                    'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value
+                }
+            });
+
+            if (response.ok) {
+                // Перезагружаем страницу — браузер сохранит позицию скролла
+                window.location.reload();
+            } else {
+                alert("Ошибка при добавлении в корзину");
+            }
+        } catch (error) {
+            console.error("Ошибка:", error);
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", initMap);
+</script>

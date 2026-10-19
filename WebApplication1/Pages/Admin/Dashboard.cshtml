@@ -1,0 +1,195 @@
+﻿@page
+@model WebApplication1.Pages.Admin.DashboardModel
+@{
+    ViewData["Title"] = "Панель администратора";
+}
+
+<div class="container-fluid mt-4" style="max-width: 1400px;">
+    <h2 class="mb-4">Управление системой (Admin)</h2>
+
+    @* Верхняя панель статистики *@
+    <div class="row mb-4 text-center">
+        <div class="col-md-4">
+            <div class="card bg-dark text-white shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-uppercase small">Пользователей</h6>
+                    <h2 class="mb-0">@Model.Users.Count</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-primary text-white shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-uppercase small">Аптек в сети</h6>
+                    <h2 class="mb-0">@Model.Pharmacies.Count</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success text-white shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-uppercase small">Препаратов в базе</h6>
+                    <h2 class="mb-0">@Model.Products.Count</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        @* ТАБЛИЦА ПОЛЬЗОВАТЕЛЕЙ (С УДАЛЕНИЕМ) *@
+        <div class="col-md-4">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">Все пользователи</h5>
+                </div>
+                <div class="card-body p-0" style="max-height: 700px; overflow-y: auto;">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light text-center">
+                            <tr>
+                                <th>ID</th>
+                                <th>Логин</th>
+                                <th>Роль</th>
+                                <th>Удалить</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var user in Model.Users)
+                            {
+                                <tr>
+                                    <td class="text-center">@user.UserId</td>
+                                    @* Если вылезет ошибка "не содержит Login", замени на user.Username *@
+                                    <td>@user.Username</td>
+                                    <td class="text-center">
+                                        <span class="badge bg-secondary">@user.Role</span>
+                                    </td>
+                                    <td class="text-center">
+                                        @if (user.Role != "admin") @* Защита от случайного удаления админа *@
+                                        {
+                                            <form method="post" asp-page-handler="DeleteUser" onsubmit="return confirm('Удалить пользователя?');">
+                                                <input type="hidden" name="userId" value="@user.UserId" />
+                                                <button type="submit" class="btn btn-outline-danger btn-sm" style="padding: 0px 8px;">×</button>
+                                            </form>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        @* ГЛОБАЛЬНЫЙ КАТАЛОГ *@
+        <div class="col-md-5">
+            <div class="card shadow-sm mb-4 border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Глобальный каталог</h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="fw-bold mb-3">Новый препарат:</h6>
+                    <form method="post" asp-page-handler="AddProduct" enctype="multipart/form-data" class="row g-2 mb-4 p-3 bg-light border rounded shadow-sm">
+                        <div class="col-md-12">
+                            <label class="small fw-bold">Название</label>
+                            <input asp-for="NewProduct.Name" class="form-control form-control-sm" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small fw-bold">Вещество</label>
+                            <input asp-for="NewProduct.ActiveSubstance" class="form-control form-control-sm" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small fw-bold">Дозировка</label>
+                            <input asp-for="NewProduct.Dosage" class="form-control form-control-sm" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small fw-bold">Форма</label>
+                            <select asp-for="NewProduct.Form" class="form-select form-select-sm">
+                                <option value="таблетки">таблетки</option>
+                                <option value="капсулы">капсулы</option>
+                                <option value="раствор">раствор</option>
+                                <option value="сироп">сироп</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small fw-bold">Изображение</label>
+                            <input type="file" asp-for="ProductImage" class="form-control form-control-sm" accept="image/*" />
+                        </div>
+                        <div class="col-12 mt-2">
+                            <div class="form-check">
+                                <input asp-for="IsPrescriptionRequired" class="form-check-input" type="checkbox" id="receptCheck">
+                                <label class="form-check-label small fw-bold text-danger" for="receptCheck">Нужен рецепт</label>
+                            </div>
+                        </div>
+                        <div class="col-12 mt-2">
+                            <button type="submit" class="btn btn-success btn-sm w-100 fw-bold">➕ Добавить препарат</button>
+                        </div>
+                    </form>
+
+                    <div style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-sm table-striped border">
+                            <thead class="table-secondary">
+                                <tr>
+                                    <th>Фото</th>
+                                    <th>Название</th>
+                                    <th class="text-center">Рецепт</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var p in Model.Products.OrderByDescending(x => x.ProductId))
+                                {
+                                    <tr>
+                                        <td class="text-center">
+                                            @if (!string.IsNullOrEmpty(p.Image))
+                                            {
+                                                <img src="/images/products/@p.Image" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;" />
+                                            }
+                                            else
+                                            {
+                                                <img src="/images/products/@(p.ProductId).png"
+                                                     onerror="this.parentElement.innerHTML='<div class=\'bg-light text-muted\' style=\'width: 40px; height: 40px; line-height: 40px; font-size: 10px; display: inline-block;\'>Нет</div>'"
+                                                     style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;" />
+                                            }
+                                        </td>
+                                        <td><strong>@p.Name</strong> <br /><small>@p.Form</small></td>
+                                        <td class="text-center">@(p.PrescriptionRequired == 1 ? "⚠️" : "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* СПИСОК АПТЕК *@
+        <div class="col-md-3">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">Аптеки в сети</h5>
+                </div>
+                <div class="card-body p-0" style="max-height: 700px; overflow-y: auto;">
+                    @foreach (var pharmacy in Model.Pharmacies)
+                    {
+                        <div class="p-3 border-bottom hover-bg">
+                            <div class="fw-bold text-primary small">@pharmacy.Name</div>
+                            <div class="x-small text-muted">@pharmacy.Address</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .x-small {
+        font-size: 0.75rem;
+    }
+
+    .hover-bg:hover {
+        background-color: #f8f9fa;
+    }
+
+    .card {
+        border-radius: 12px;
+    }
+</style>

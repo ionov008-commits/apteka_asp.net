@@ -1,0 +1,39 @@
+﻿@page
+@model WebApplication1.Pages.Account.LoginModel
+@{
+    ViewData["Title"] = "Вход";
+}
+
+<div style="max-width: 400px; margin: 80px auto; font-family: 'Segoe UI', sans-serif; border: 1px solid #e0e0e0; padding: 30px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.05); background: white;">
+    <h2 style="text-align: center; color: #333; margin-bottom: 25px;">Вход</h2>
+
+    <form method="post">
+        <div style="color: #dc3545; margin-bottom: 15px; font-size: 14px;">
+            @Html.ValidationSummary(true)
+        </div>
+
+        <div style="margin-bottom: 15px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Логин или Email:</label>
+            <input asp-for="Input.LoginHandle" class="form-control" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ccc;" />
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Пароль:</label>
+            <input asp-for="Input.Password" type="password" class="form-control" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ccc;" />
+        </div>
+
+        @* Капча *@
+        <div style="margin-bottom: 20px; padding: 10px; background: #f9f9f9; border-radius: 6px;">
+            <label style="font-size: 14px;">Решите: <b>@ViewData["CaptchaText"]</b></label>
+            <input asp-for="Input.CaptchaInput" type="number" class="form-control" style="width: 100%; margin-top: 5px;" />
+        </div>
+
+        <button type="submit" style="width: 100%; background: #0d6efd; color: white; padding: 12px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">
+            Войти
+        </button>
+    </form>
+
+    <p style="text-align: center; margin-top: 15px; font-size: 14px;">
+        Нет аккаунта? <a href="/Account/Register">Регистрация</a>
+    </p>
+</div>

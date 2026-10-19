@@ -1,0 +1,584 @@
+﻿@page
+@model WebApplication1.Pages.Account.ProfileModel
+@{
+    ViewData["Title"] = "Личный кабинет";
+
+    bool hasErrors = !ViewData.ModelState.IsValid;
+
+    string ordersTabBtnClass = hasErrors ? "" : "active";
+    string settingsTabBtnClass = hasErrors ? "active" : "";
+
+    string ordersContentClass = hasErrors ? "" : "active";
+    string settingsContentClass = hasErrors ? "active" : "";
+
+    string ordersStyle = hasErrors ? "display: none;" : "display: block;";
+    string settingsStyle = hasErrors ? "display: block;" : "display: none;";
+}
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<div class="profile-page">
+    <div class="container">
+
+        <div class="profile-header">
+            <div class="user-info-main">
+                <div class="avatar">@((Model.CurrentUser?.Customer?.FullName ?? "U").Substring(0, 1).ToUpper())</div>
+                <div>
+                    <h1>@(Model.CurrentUser?.Customer?.FullName ?? "Пользователь")</h1>
+                    <p>Аккаунт: <strong>@Model.CurrentUser?.Username</strong> | Роль: @Model.CurrentUser?.Role</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <a href="/Index" class="back-link">
+                    <span class="arrow">←</span>
+                    <span class="text">На главную</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="tabs-nav">
+            <button class="tab-btn @ordersTabBtnClass" onclick="openTab(event, 'ordersTab')">📦 Мои заказы</button>
+            <button class="tab-btn @settingsTabBtnClass" onclick="openTab(event, 'settingsTab')">⚙️ Настройки профиля</button>
+        </div>
+
+        @* --- ВКЛАДКА ЗАКАЗОВ --- *@
+        <div id="ordersTab" class="tab-content @ordersContentClass" style="@ordersStyle">
+            @if (Model.Orders.Any())
+            {
+                @foreach (var order in Model.Orders)
+                {
+                    <div class="order-card">
+                        <div class="order-main">
+                            @* ИСПРАВЛЕННЫЙ БЛОК QR-КОДА *@
+                            <div class="order-qr">
+                                @if (order.Status.ToLower() == "active" || order.Status.ToLower() == "booked")
+                                {
+                                    @* Путь исправлен под твой скриншот: просто ID.png *@
+                                    <img src="/images/orders/@(order.OrderId).png"
+                                         alt="QR-код заказа"
+                                         onerror="this.src='https://chart.googleapis.com/chart?chs=120x120&cht=qr&chl=ORDER_@order.OrderId&choe=UTF-8';" />
+                                }
+                                else
+                                {
+                                    <div class="qr-placeholder">
+                                        <span>📦</span>
+                                    </div>
+                                }
+                                <span class="order-id-label">ID: @order.OrderId</span>
+                            </div>
+
+                            <div class="order-info">
+                                <div class="order-top">
+                                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                                        <span class="order-date">Оформлен: @order.CreatedAt.ToString("dd.MM.yyyy HH:mm")</span>
+                                        @if (order.ExpiresAt.HasValue)
+                                        {
+                                            <span style="font-size: 12px; color: #c53030; font-weight: 600;">
+                                                ⏳ Забрать до: @order.ExpiresAt.Value.ToString("dd.MM.yyyy HH:mm")
+                                            </span>
+                                        }
+                                    </div>
+                                    <span class="status-badge">@order.Status</span>
+                                </div>
+
+                                <div class="order-items-list">
+                                    @foreach (var item in order.Items)
+                                    {
+                                        <a href="/ProductCard?id=@item.ProductId" class="order-item-row" title="Перейти к товару">
+                                            <div class="item-icon-small">💊</div>
+                                            <div class="item-details">
+                                                <span class="item-name">@item.ProductName</span>
+                                                <span class="item-meta">@item.Quantity шт. × @item.Price.ToString("F2") ₽</span>
+
+                                                <div style="margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e2e8f0;">
+                                                    <span style="display: block; font-size: 11px; color: #4a5568; font-weight: 600;">🏥 @item.PharmacyName</span>
+                                                    <span style="display: block; font-size: 11px; color: #718096;">📍 @item.PharmacyAddress</span>
+                                                </div>
+                                            </div>
+                                            <div class="item-total">
+                                                @((item.Quantity * item.Price).ToString("F2")) ₽
+                                            </div>
+                                        </a>
+                                    }
+                                </div>
+
+                                <div class="order-bottom">
+                                    <span class="total-label">Итого:</span>
+                                    <span class="total-price">@order.TotalCost.ToString("F2") ₽</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="empty-state">Заказов пока нет. Время что-нибудь забронировать!</div>
+            }
+        </div>
+
+        @* --- ВКЛАДКА НАСТРОЕК --- *@
+        <div id="settingsTab" class="tab-content @settingsContentClass" style="@settingsStyle">
+            <form method="post" asp-page-handler="Update" class="edit-form">
+                <input type="hidden" asp-for="Input.Latitude" id="latInput" />
+                <input type="hidden" asp-for="Input.Longitude" id="lonInput" />
+
+                <div class="form-grid">
+                    <div class="form-section">
+                        <h3>Личные данные</h3>
+                        <div class="form-group">
+                            <label>ФИО</label>
+                            <input asp-for="Input.FullName" class="form-input" />
+                        </div>
+                        <div class="form-group">
+                            <label>Телефон</label>
+                            <input asp-for="Input.Phone" id="phoneInput" class="form-input" />
+                        </div>
+                        <div class="form-group">
+                            <label>Логин</label>
+                            <input asp-for="Input.Username" class="form-input" />
+                            <span asp-validation-for="Input.Username" class="error-msg"></span>
+                        </div>
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input asp-for="Input.Email" type="email" class="form-input" placeholder="example@mail.com" />
+                            <span asp-validation-for="Input.Email" class="error-msg"></span>
+                        </div>
+                        <div class="form-group">
+                            <label>Новый пароль (оставьте пустым, если не меняете)</label>
+                            <input asp-for="Input.NewPassword" type="password" class="form-input" placeholder="********" />
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>Местоположение</h3>
+                        <div id="map"></div>
+                        <div class="form-group" style="margin-top: 15px;">
+                            <label>Адрес</label>
+                            <input asp-for="Input.Address" id="addressInput" class="form-input" placeholder="г. Минск, ул. ..." />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="password-confirmation-box">
+                    <h4>Подтверждение личности</h4>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label>Введите ТЕКУЩИЙ пароль для сохранения изменений</label>
+                        <input asp-for="Input.CurrentPassword" type="password" class="form-input" placeholder="Ваш действующий пароль" />
+                        <span asp-validation-for="Input.CurrentPassword" class="error-msg" style="font-weight: 600;"></span>
+                    </div>
+                </div>
+
+                @if (!ViewData.ModelState.IsValid)
+                {
+                    <div class="alert-box">
+                        <strong>Ошибка:</strong> Проверьте правильность введенных данных и пароля.
+                    </div>
+                }
+
+                <button type="submit" class="save-btn">Сохранить изменения</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    :root {
+        --primary: #3182ce;
+        --secondary: #20c997;
+        --bg: #f4f7f6;
+        --text: #2d3748;
+        --light-border: #e2e8f0;
+        --error: #c53030;
+    }
+
+    .profile-page {
+        background: var(--bg);
+        min-height: 100vh;
+        padding: 40px 0;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    .container {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 0 20px;
+    }
+
+    .profile-header {
+        background: white;
+        padding: 30px;
+        border-radius: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        margin-bottom: 30px;
+    }
+
+    .user-info-main {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+    }
+
+    .avatar {
+        width: 70px;
+        height: 70px;
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        font-weight: bold;
+    }
+
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        text-decoration: none;
+        background: white;
+        color: #4a5568;
+        padding: 10px 18px;
+        border-radius: 12px;
+        border: 1px solid var(--light-border);
+        font-weight: 600;
+        transition: 0.2s;
+    }
+
+        .back-link:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            transform: translateX(-3px);
+        }
+
+    .tabs-nav {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 25px;
+    }
+
+    .tab-btn {
+        padding: 12px 25px;
+        border: none;
+        background: #e2e8f0;
+        border-radius: 10px;
+        cursor: pointer;
+        font-weight: 600;
+        color: #4a5568;
+        transition: 0.3s;
+    }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: white;
+        }
+
+    .order-card {
+        background: white;
+        border-radius: 18px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+    }
+
+    .order-main {
+        display: flex;
+        gap: 25px;
+    }
+
+    .order-qr {
+        text-align: center;
+        border-right: 1px solid #edf2f7;
+        padding-right: 25px;
+        min-width: 150px;
+    }
+
+        .order-qr img {
+            width: 120px;
+            height: 120px;
+            display: block;
+            margin: 0 auto 10px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+        }
+
+    .qr-placeholder {
+        width: 120px;
+        height: 120px;
+        background: #f7fafc;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 40px;
+        border: 2px dashed #e2e8f0;
+        margin: 0 auto 10px;
+    }
+
+    .order-id-label {
+        font-size: 12px;
+        font-weight: 700;
+        color: #718096;
+        background: #edf2f7;
+        padding: 2px 8px;
+        border-radius: 4px;
+        display: inline-block;
+    }
+
+    .order-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .order-top {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 15px;
+    }
+
+    .status-badge {
+        background: #ebf8ff;
+        color: var(--primary);
+        padding: 4px 12px;
+        border-radius: 50px;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        align-self: flex-start;
+    }
+
+    .order-items-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 15px;
+    }
+
+    .order-item-row {
+        display: flex;
+        align-items: center;
+        text-decoration: none;
+        background: #f7fafc;
+        padding: 10px 15px;
+        border-radius: 12px;
+        color: var(--text);
+        transition: 0.2s;
+        border: 1px solid transparent;
+    }
+
+        .order-item-row:hover {
+            background: #ebf8ff;
+            border-color: #bee3f8;
+            transform: translateX(5px);
+        }
+
+    .item-icon-small {
+        font-size: 20px;
+        margin-right: 15px;
+        background: white;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        border: 1px solid #edf2f7;
+    }
+
+    .item-details {
+        flex: 1;
+    }
+
+    .item-name {
+        font-weight: 600;
+        font-size: 14px;
+        display: block;
+    }
+
+    .item-meta {
+        font-size: 12px;
+        color: #718096;
+    }
+
+    .item-total {
+        font-weight: 700;
+        color: var(--primary);
+    }
+
+    .order-bottom {
+        display: flex;
+        justify-content: space-between;
+        border-top: 1px dashed #edf2f7;
+        padding-top: 10px;
+        align-items: center;
+    }
+
+    .total-price {
+        font-size: 22px;
+        font-weight: 800;
+        color: var(--primary);
+    }
+
+    .edit-form {
+        background: white;
+        padding: 30px;
+        border-radius: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    }
+
+    .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 40px;
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #718096;
+        }
+
+    .form-input {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--light-border);
+        border-radius: 8px;
+    }
+
+    #map {
+        width: 100%;
+        height: 250px;
+        border-radius: 10px;
+        border: 1px solid var(--light-border);
+    }
+
+    .password-confirmation-box {
+        margin-top: 25px;
+        padding: 20px;
+        background: #fff5f5;
+        border: 1px solid #feb2b2;
+        border-radius: 12px;
+    }
+
+        .password-confirmation-box h4 {
+            color: var(--error);
+            margin-bottom: 10px;
+        }
+
+    .save-btn {
+        margin-top: 30px;
+        width: 100%;
+        padding: 15px;
+        background: var(--secondary);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: 0.3s;
+    }
+
+        .save-btn:hover {
+            background: #18a87e;
+        }
+
+    .error-msg {
+        color: var(--error);
+        font-size: 12px;
+        display: block;
+        margin-top: 4px;
+    }
+
+    .alert-box {
+        color: var(--error);
+        margin-top: 15px;
+        padding: 10px;
+        background: #fff5f5;
+        border-radius: 8px;
+        border: 1px solid #feb2b2;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px;
+        background: white;
+        border-radius: 20px;
+        border: 2px dashed #cbd5e0;
+        color: #a0aec0;
+    }
+</style>
+
+<script>
+    function openTab(evt, tabName) {
+        let i, tabcontent, tablinks;
+        tabcontent = document.getElementsByClassName("tab-content");
+        for (i = 0; i < tabcontent.length; i++) {
+            tabcontent[i].style.display = "none";
+            tabcontent[i].classList.remove("active");
+        }
+        tablinks = document.getElementsByClassName("tab-btn");
+        for (i = 0; i < tablinks.length; i++) {
+            tablinks[i].classList.remove("active");
+        }
+
+        const activeTab = document.getElementById(tabName);
+        activeTab.style.display = "block";
+        activeTab.classList.add("active");
+        evt.currentTarget.classList.add("active");
+
+        if (tabName === 'settingsTab' && map) {
+            setTimeout(() => { map.invalidateSize(); }, 200);
+        }
+    }
+
+    let map, marker;
+    function initMap() {
+        const latInput = document.getElementById('latInput');
+        const lonInput = document.getElementById('lonInput');
+        const lat = parseFloat(latInput.value) || 53.90;
+        const lon = parseFloat(lonInput.value) || 27.56;
+
+        map = L.map('map').setView([lat, lon], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        marker = L.marker([lat, lon], { draggable: true }).addTo(map);
+
+        marker.on('dragend', function() {
+            const pos = marker.getLatLng();
+            latInput.value = pos.lat;
+            lonInput.value = pos.lng;
+            updateAddress(pos.lat, pos.lng);
+        });
+
+        @if (hasErrors)
+        {
+                <text>setTimeout(() => { if(map) map.invalidateSize(); }, 300);</text>
+        }
+    }
+
+    async function updateAddress(lat, lng) {
+        try {
+            const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`);
+            const d = await r.json();
+            if (d.display_name) document.getElementById('addressInput').value = d.display_name;
+        } catch(e) {}
+    }
+
+    document.getElementById('phoneInput').addEventListener('input', function (e) {
+        let x = e.target.value.replace(/\D/g, '').match(/(\d{0,3})(\d{0,2})(\d{0,3})(\d{0,2})(\d{0,2})/);
+        if (!x) return;
+        e.target.value = !x[2] ? x[1] : '+375 (' + x[2] + ') ' + x[3] + (x[4] ? '-' + x[4] : '') + (x[5] ? '-' + x[5] : '');
+    });
+
+    document.addEventListener("DOMContentLoaded", initMap);
+</script>

@@ -1,0 +1,50 @@
+﻿@page
+@model CatalogModel
+@{
+    ViewData["Title"] = "Каталог";
+}
+
+<div class="container mt-4" style="font-family: 'Segoe UI', sans-serif;">
+    <nav class="mb-4">
+        <a asp-page="/Index" class="text-decoration-none">← Назад на главную</a>
+    </nav>
+
+    @if (Model.GroupedProducts != null)
+    {
+        @foreach (var group in Model.GroupedProducts)
+        {
+            @* ИСПРАВЛЕНО: Добавлен id для скролла. Пробелы заменяем на подчеркивания. *@
+            <div id="@group.Key.Replace(" ", "_")" class="category-block mb-5 pt-3">
+                <h2 class="fw-bold text-primary border-bottom pb-2 mb-4">@group.Key</h2>
+
+                <div class="row row-cols-1 row-cols-md-4 g-4">
+                    @foreach (var product in group.Value)
+                    {
+                        <div class="col">
+                            <div class="card h-100 shadow-sm border-0" style="transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+                                <div class="card-body">
+                                    <h5 class="card-title fw-bold">@product.Name</h5>
+                                    <p class="text-muted small">@product.ActiveSubstance</p>
+                                    <a asp-page="/ProductCard" asp-route-id="@product.ProductId"
+                                       class="btn btn-sm btn-outline-primary w-100 mt-2">Карточка товара</a>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@* Скрипт для плавного скролла к категории при переходе с главной *@
+<script>
+    window.onload = function() {
+        if (window.location.hash) {
+            const element = document.getElementById(decodeURIComponent(window.location.hash.substring(1)));
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+    };
+</script>
